@@ -45,6 +45,8 @@ def load_all_submissions(page, hackathon_url: str, max_clicks: int = 200):
     page.goto(live_url, wait_until="domcontentloaded", timeout=45000)
     page.wait_for_timeout(2000)
 
+    print(f"  page title: {page.title()!r}", file=sys.stderr)
+
     load_more_selectors = [
         "text=Load more",
         "button:has-text('Load more')",
@@ -78,6 +80,15 @@ def load_all_submissions(page, hackathon_url: str, max_clicks: int = 200):
     slug = hackathon_url.rstrip("/").split("/")[-1]
     pattern = re.compile(rf"/ai-hackathons/{re.escape(slug)}/[^/]+/[^/?#]+/?$")
     unique = sorted({h for h in hrefs if h and pattern.search(h)})
+
+    if not unique:
+        # Dump diagnostics so we can see what actually loaded
+        debug_path = "debug_live_page.html"
+        with open(debug_path, "w") as f:
+            f.write(page.content())
+        print(f"  ! 0 matches. Found {len(hrefs)} raw '/ai-hackathons/' links total. "
+              f"Saved rendered HTML to {debug_path} for inspection.", file=sys.stderr)
+
     return unique
 
 
