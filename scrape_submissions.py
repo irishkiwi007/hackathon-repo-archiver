@@ -111,7 +111,14 @@ def scrape(hackathon_url: str, out_path: str):
             for attempt in range(2):
                 try:
                     page.goto(url, wait_until="domcontentloaded", timeout=45000)
-                    page.wait_for_timeout(1500)  # let client-side content render
+                    # Wait specifically for a github.com link to render, since
+                    # it's injected client-side after initial page load. If
+                    # none shows up within 8s, the submission likely just
+                    # doesn't have one -- proceed and grab whatever loaded.
+                    try:
+                        page.wait_for_selector("a[href*='github.com']", timeout=8000)
+                    except Exception:
+                        page.wait_for_timeout(2000)
                     title = page.title()
                     html = page.content()
                     break
