@@ -42,7 +42,8 @@ GITHUB_IGNORE_OWNERS = {"lablab-ai", "lablabai"}
 def load_all_submissions(page, hackathon_url: str, max_clicks: int = 200):
     """Navigate to the /live results page and keep clicking Load more."""
     live_url = hackathon_url.rstrip("/") + "/live"
-    page.goto(live_url, wait_until="networkidle")
+    page.goto(live_url, wait_until="domcontentloaded", timeout=45000)
+    page.wait_for_timeout(2000)
 
     load_more_selectors = [
         "text=Load more",
@@ -106,27 +107,34 @@ def scrape(hackathon_url: str, out_path: str):
         for i, rel in enumerate(rel_links, 1):
             url = rel if rel.startswith("http") else base + rel
             print(f"[{i}/{len(rel_links)}] {url}", file=sys.stderr)
-            try:
-                page.goto(url, wait_until="networkidle", timeout=30000)
-                title = page.title()
-                html = page.content()
-                gh = extract_github_url(html)
-                team = rel.strip("/").split("/")[-2]
-                results.append({
-                    "title": title,
-                    "team": team,
-                    "submission_url": url,
-                    "github_url": gh,
-                })
-            except Exception as e:
-                print(f"  ! failed: {e}", file=sys.stderr)
+            html = None
+            for attempt in range(2):
+                try:
+                    page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                    page.wait_for_timeout(1500)  # let client-side content render
+                    title = page.title()
+                    html = page.content()
+                    break
+                except Exception as e:
+                    print(f"  ! attempt {attempt + 1} failed: {e}", file=sys.stderr)
+                    time.sleep(2)
+            if html is None:
                 results.append({
                     "title": None,
                     "team": None,
                     "submission_url": url,
                     "github_url": None,
-                    "error": str(e),
+                    "error": "timed out after retries",
                 })
+                continue
+            gh = extract_github_url(html)
+            team = rel.strip("/").split("/")[-2]
+            results.append({
+                "title": title,
+                "team": team,
+                "submission_url": url,
+                "github_url": gh,
+            })
             time.sleep(0.5)  # be polite
 
         browser.close()
