@@ -113,6 +113,11 @@ def main():
             skipped.append(sub)
             continue
 
+        if src_owner.lower() == args.dest_owner.lower():
+            print(f"SKIP (it's your own repo already): {title}")
+            skipped.append(sub)
+            continue
+
         new_name = slugify(f"{args.prefix}{src_owner}-{src_repo}")
         desc = (f"Standalone archived copy of {gh} — {sub.get('team','')} — "
                 f"submission: {sub.get('submission_url','')}")
