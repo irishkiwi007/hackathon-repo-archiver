@@ -39,8 +39,12 @@ GITHUB_RE = re.compile(
 GITHUB_IGNORE_OWNERS = {"lablab-ai", "lablabai"}
 
 
-def load_all_submissions(page, hackathon_url: str, max_clicks: int = 200):
-    """Navigate to the /live results page and keep clicking Load more."""
+def load_all_submissions(page, hackathon_url: str, max_rounds: int = 100):
+    """Navigate to the /live results page and load every submission card.
+
+    Handles both patterns: a "Load more" button, and plain infinite-scroll
+    where scrolling to the bottom triggers more cards to load.
+    """
     live_url = hackathon_url.rstrip("/") + "/live"
     page.goto(live_url, wait_until="domcontentloaded", timeout=45000)
     page.wait_for_timeout(2000)
@@ -52,59 +56,56 @@ def load_all_submissions(page, hackathon_url: str, max_clicks: int = 200):
         "button:has-text('Load more')",
         "text=Load More",
     ]
+    slug = hackathon_url.rstrip("/").split("/")[-1]
+    pattern = re.compile(rf"/ai-hackathons/{re.escape(slug)}/[^/]+/[^/?#]+/?$")
+
+    def count_matches():
+        hrefs = page.eval_on_selector_all(
+            "a[href*='/ai-hackathons/']",
+            "els => els.map(e => e.getAttribute('href'))",
+        )
+        return {h for h in hrefs if h and pattern.search(h)}
 
     clicks = 0
     stale_rounds = 0
-    while clicks < max_clicks and stale_rounds < 3:
+    prev_count = len(count_matches())
+    for _ in range(max_rounds):
         clicked = False
         for sel in load_more_selectors:
             btn = page.locator(sel).first
             try:
-                if btn.is_visible(timeout=2000):
+                if btn.is_visible(timeout=1500):
                     btn.scroll_into_view_if_needed()
                     btn.click()
                     clicks += 1
                     clicked = True
-                    page.wait_for_timeout(1800)  # let the grid re-render
+                    page.wait_for_timeout(1800)
                     break
             except Exception:
                 continue
+
         if not clicked:
-            # Button may just be slow to appear after the last click -- give
-            # it one more moment before concluding we've reached the end.
+            # No button found/clickable -- try infinite scroll instead.
+            page.mouse.wheel(0, 4000)
             page.wait_for_timeout(1500)
-            still_there = False
-            for sel in load_more_selectors:
-                try:
-                    if page.locator(sel).first.is_visible(timeout=1500):
-                        still_there = True
-                        break
-                except Exception:
-                    continue
-            if still_there:
-                stale_rounds += 1
-                continue
-            break
 
-    # Collect submission links. lablab submission URLs look like:
-    # /ai-hackathons/<hackathon-slug>/<team-slug>/<submission-slug>
-    hrefs = page.eval_on_selector_all(
-        "a[href*='/ai-hackathons/']",
-        "els => els.map(e => e.getAttribute('href'))",
-    )
-    slug = hackathon_url.rstrip("/").split("/")[-1]
-    pattern = re.compile(rf"/ai-hackathons/{re.escape(slug)}/[^/]+/[^/?#]+/?$")
-    unique = sorted({h for h in hrefs if h and pattern.search(h)})
+        new_count = len(count_matches())
+        if new_count > prev_count:
+            prev_count = new_count
+            stale_rounds = 0
+        else:
+            stale_rounds += 1
+            if stale_rounds >= 4:
+                break
 
-    if not unique:
-        # Dump diagnostics so we can see what actually loaded
-        debug_path = "debug_live_page.html"
-        with open(debug_path, "w") as f:
+    print(f"  clicked Load more {clicks} time(s); "
+          f"{prev_count} unique submission links found", file=sys.stderr)
+    if prev_count == 0:
+        with open("debug_live_page.html", "w") as f:
             f.write(page.content())
-        print(f"  ! 0 matches. Found {len(hrefs)} raw '/ai-hackathons/' links total. "
-              f"Saved rendered HTML to {debug_path} for inspection.", file=sys.stderr)
+        print("  saved debug_live_page.html for inspection", file=sys.stderr)
 
-    return unique
+    return sorted(count_matches())
 
 
 def extract_github_url(html: str):
