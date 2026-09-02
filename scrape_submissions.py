@@ -112,7 +112,7 @@ def extract_github_url(html: str):
     for owner, repo in GITHUB_RE.findall(html):
         if owner.lower() in GITHUB_IGNORE_OWNERS:
             continue
-        repo = repo.rstrip(".git")
+        repo = re.sub(r"\.git$", "", repo)
         return f"https://github.com/{owner}/{repo}"
     return None
 
