@@ -63,13 +63,21 @@ def create_repo(token, name, private, description):
 def mirror_copy(source_url, dest_clone_url, token):
     tmp = tempfile.mkdtemp(prefix="hackcopy_")
     bare_dir = os.path.join(tmp, "repo.git")
+    # Disable git's interactive credential prompt -- if a source repo is
+    # gone/private, git would otherwise hang forever asking for a username
+    # instead of just failing. This makes it fail fast so we can skip it.
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     try:
         subprocess.run(["git", "clone", "--bare", source_url, bare_dir],
-                        check=True, capture_output=True, text=True)
+                        check=True, capture_output=True, text=True,
+                        env=env, timeout=60)
         # inject token into the destination URL for auth
         auth_url = dest_clone_url.replace("https://", f"https://{token}@")
         subprocess.run(["git", "push", "--mirror", auth_url],
-                        cwd=bare_dir, check=True, capture_output=True, text=True)
+                        cwd=bare_dir, check=True, capture_output=True, text=True,
+                        env=env, timeout=120)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"git timed out (likely source repo gone/private): {e}")
     except subprocess.CalledProcessError as e:
         raise RuntimeError(
             f"git failed: {e.cmd}\nstdout: {e.stdout}\nstderr: {e.stderr}"
