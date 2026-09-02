@@ -70,6 +70,25 @@ def load_all_submissions(page, hackathon_url: str, max_rounds: int = 100):
     stale_rounds = 0
     prev_count = len(count_matches())
     for round_num in range(max_rounds):
+        # A modal (headlessui portal) sometimes pops up -- e.g. after the
+        # first Load more click -- and blocks all further clicks by
+        # intercepting pointer events. Dismiss it before trying anything.
+        try:
+            if page.locator("#headlessui-portal-root").count() > 0:
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(300)
+                # Some modals need an explicit close click rather than Escape
+                close_btn = page.locator(
+                    "#headlessui-portal-root button[aria-label='Close'], "
+                    "#headlessui-portal-root button:has-text('Close'), "
+                    "#headlessui-portal-root [aria-label='close']"
+                ).first
+                if close_btn.count() > 0:
+                    close_btn.click(timeout=1000)
+                page.wait_for_timeout(300)
+        except Exception:
+            pass
+
         clicked = False
         for sel in load_more_selectors:
             btn = page.locator(sel).first
