@@ -99,7 +99,7 @@ def load_all_submissions(page, hackathon_url: str, max_rounds: int = 100):
                     print(f"    [{sel!r}] count={cnt} visible={vis}", file=sys.stderr)
                 if vis:
                     btn.scroll_into_view_if_needed()
-                    btn.click(timeout=5000)
+                    btn.click(timeout=5000, force=True)
                     clicks += 1
                     clicked = True
                     page.wait_for_timeout(1800)
