@@ -54,21 +54,36 @@ def load_all_submissions(page, hackathon_url: str, max_clicks: int = 200):
     ]
 
     clicks = 0
-    while clicks < max_clicks:
+    stale_rounds = 0
+    while clicks < max_clicks and stale_rounds < 3:
         clicked = False
         for sel in load_more_selectors:
             btn = page.locator(sel).first
             try:
-                if btn.is_visible(timeout=1000):
+                if btn.is_visible(timeout=2000):
                     btn.scroll_into_view_if_needed()
                     btn.click()
                     clicks += 1
                     clicked = True
-                    page.wait_for_timeout(900)  # let the grid re-render
+                    page.wait_for_timeout(1800)  # let the grid re-render
                     break
             except Exception:
                 continue
         if not clicked:
+            # Button may just be slow to appear after the last click -- give
+            # it one more moment before concluding we've reached the end.
+            page.wait_for_timeout(1500)
+            still_there = False
+            for sel in load_more_selectors:
+                try:
+                    if page.locator(sel).first.is_visible(timeout=1500):
+                        still_there = True
+                        break
+                except Exception:
+                    continue
+            if still_there:
+                stale_rounds += 1
+                continue
             break
 
     # Collect submission links. lablab submission URLs look like:
