@@ -104,11 +104,27 @@ def extract_github_url(html: str):
 def scrape(hackathon_url: str, out_path: str):
     results = []
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(user_agent=(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
-        ))
+        # Cloudflare's bot management flags plain headless Chromium via
+        # navigator.webdriver and similar automation fingerprints, regardless
+        # of IP reputation. Using a real Chrome channel, a visible window,
+        # and hiding navigator.webdriver gets past it much more reliably.
+        browser = p.chromium.launch(
+            headless=False,
+            channel="chrome",
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        context = browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/126.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1366, "height": 900},
+        )
+        context.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+        )
+        page = context.new_page()
 
         print("Loading submission list (clicking Load more)...", file=sys.stderr)
         rel_links = load_all_submissions(page, hackathon_url)
@@ -130,6 +146,10 @@ def scrape(hackathon_url: str, out_path: str):
                         page.wait_for_selector("a[href*='github.com']", timeout=8000)
                     except Exception:
                         page.wait_for_timeout(2000)
+                    # If we landed on Cloudflare's interstitial, give it a
+                    # few more seconds to auto-resolve, then re-check.
+                    if "Just a moment" in page.title():
+                        page.wait_for_timeout(6000)
                     title = page.title()
                     html = page.content()
                     gh_link_count = page.locator("a[href*='github.com']").count()
