@@ -101,7 +101,7 @@ def extract_github_url(html: str):
     return None
 
 
-def scrape(hackathon_url: str, out_path: str):
+def scrape(hackathon_url: str, out_path: str, args_limit: int = 0):
     results = []
     with sync_playwright() as p:
         # Cloudflare's bot management flags plain headless Chromium via
@@ -131,6 +131,9 @@ def scrape(hackathon_url: str, out_path: str):
         print(f"Found {len(rel_links)} submissions.", file=sys.stderr)
 
         base = "https://lablab.ai"
+        if args_limit:
+            rel_links = rel_links[:args_limit]
+            print(f"(limited to first {args_limit} for testing)", file=sys.stderr)
         for i, rel in enumerate(rel_links, 1):
             url = rel if rel.startswith("http") else base + rel
             print(f"[{i}/{len(rel_links)}] {url}", file=sys.stderr)
@@ -197,5 +200,7 @@ if __name__ == "__main__":
     ap.add_argument("--hackathon-url", required=True,
                      help="e.g. https://lablab.ai/ai-hackathons/alpaca-ai-trading-agents-hackathon")
     ap.add_argument("--out", default="submissions.json")
+    ap.add_argument("--limit", type=int, default=0,
+                     help="Only process the first N submissions (for testing)")
     args = ap.parse_args()
-    scrape(args.hackathon_url, args.out)
+    scrape(args.hackathon_url, args.out, args.limit)
