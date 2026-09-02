@@ -132,6 +132,12 @@ def scrape(hackathon_url: str, out_path: str):
                         page.wait_for_timeout(2000)
                     title = page.title()
                     html = page.content()
+                    gh_link_count = page.locator("a[href*='github.com']").count()
+                    print(f"  github.com anchors found on page: {gh_link_count}", file=sys.stderr)
+                    if gh_link_count == 0 and i == 1:
+                        with open("debug_submission_page.html", "w") as dbg:
+                            dbg.write(html)
+                        print("  saved debug_submission_page.html", file=sys.stderr)
                     break
                 except Exception as e:
                     print(f"  ! attempt {attempt + 1} failed: {e}", file=sys.stderr)
