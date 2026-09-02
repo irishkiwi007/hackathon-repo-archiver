@@ -148,10 +148,23 @@ def extract_github_url(html: str):
 def scrape(hackathon_url: str, out_path: str, args_limit: int = 0):
     results = []
     with sync_playwright() as p:
-        # Cloudflare's bot management flags plain headless Chromium via
-        # navigator.webdriver and similar automation fingerprints, regardless
-        # of IP reputation. Using a real Chrome channel, a visible window,
-        # and hiding navigator.webdriver gets past it much more reliably.
+        # Phase 1: load the full submission list. Plain headless Chromium
+        # works cleanly here -- no Cloudflare issue on this page, and
+        # critically, a phantom popup that blocks "Load more" clicks only
+        # shows up in a headed/real-Chrome browser, not headless.
+        list_browser = p.chromium.launch(headless=True)
+        list_page = list_browser.new_page(user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+        ))
+        print("Loading submission list (clicking Load more)...", file=sys.stderr)
+        rel_links = load_all_submissions(list_page, hackathon_url)
+        print(f"Found {len(rel_links)} submissions.", file=sys.stderr)
+        list_browser.close()
+
+        # Phase 2: visit each submission page. This is where Cloudflare's
+        # bot check bites, so use a real Chrome channel, headed, with
+        # navigator.webdriver hidden.
         browser = p.chromium.launch(
             headless=False,
             channel="chrome",
@@ -169,10 +182,6 @@ def scrape(hackathon_url: str, out_path: str, args_limit: int = 0):
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
         )
         page = context.new_page()
-
-        print("Loading submission list (clicking Load more)...", file=sys.stderr)
-        rel_links = load_all_submissions(page, hackathon_url)
-        print(f"Found {len(rel_links)} submissions.", file=sys.stderr)
 
         base = "https://lablab.ai"
         if args_limit:
