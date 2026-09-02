@@ -74,14 +74,19 @@ def load_all_submissions(page, hackathon_url: str, max_rounds: int = 100):
         for sel in load_more_selectors:
             btn = page.locator(sel).first
             try:
-                if btn.is_visible(timeout=1500):
+                cnt = btn.count()
+                vis = btn.is_visible(timeout=1500) if cnt else False
+                if round_num < 5:
+                    print(f"    [{sel!r}] count={cnt} visible={vis}", file=sys.stderr)
+                if vis:
                     btn.scroll_into_view_if_needed()
-                    btn.click()
+                    btn.click(timeout=5000)
                     clicks += 1
                     clicked = True
                     page.wait_for_timeout(1800)
                     break
-            except Exception:
+            except Exception as e:
+                print(f"    [{sel!r}] click attempt raised: {e}", file=sys.stderr)
                 continue
 
         if not clicked:
