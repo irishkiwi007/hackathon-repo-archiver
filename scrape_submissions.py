@@ -69,7 +69,7 @@ def load_all_submissions(page, hackathon_url: str, max_rounds: int = 100):
     clicks = 0
     stale_rounds = 0
     prev_count = len(count_matches())
-    for _ in range(max_rounds):
+    for round_num in range(max_rounds):
         clicked = False
         for sel in load_more_selectors:
             btn = page.locator(sel).first
@@ -85,17 +85,21 @@ def load_all_submissions(page, hackathon_url: str, max_rounds: int = 100):
                 continue
 
         if not clicked:
-            # No button found/clickable -- try infinite scroll instead.
-            page.mouse.wheel(0, 4000)
-            page.wait_for_timeout(1500)
+            # No button found/clickable -- scroll all the way to the
+            # actual current bottom of the page (not a fixed pixel
+            # offset, since page height grows as more cards load).
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            page.wait_for_timeout(2000)
 
         new_count = len(count_matches())
+        print(f"  round {round_num + 1}: {new_count} links "
+              f"(clicked={clicked})", file=sys.stderr)
         if new_count > prev_count:
             prev_count = new_count
             stale_rounds = 0
         else:
             stale_rounds += 1
-            if stale_rounds >= 4:
+            if stale_rounds >= 8:
                 break
 
     print(f"  clicked Load more {clicks} time(s); "
