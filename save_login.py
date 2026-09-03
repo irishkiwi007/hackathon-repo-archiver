@@ -8,8 +8,22 @@ which scrape_submissions.py can then reuse so it's logged in too.
 from playwright.sync_api import sync_playwright
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(headless=False, channel="chrome")
-    context = browser.new_context()
+    browser = p.chromium.launch(
+        headless=False,
+        channel="chrome",
+        args=["--disable-blink-features=AutomationControlled"],
+    )
+    context = browser.new_context(
+        user_agent=(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/126.0.0.0 Safari/537.36"
+        ),
+        viewport={"width": 1366, "height": 900},
+    )
+    context.add_init_script(
+        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+    )
     page = context.new_page()
     page.goto("https://lablab.ai/api/auth/signin", wait_until="domcontentloaded")
 
