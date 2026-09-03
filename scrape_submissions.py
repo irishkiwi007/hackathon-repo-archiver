@@ -25,6 +25,7 @@ Output: submissions.json, a list of:
 """
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -183,11 +184,28 @@ def scrape(hackathon_url: str, out_path: str, args_limit: int = 0):
         # works cleanly here -- no Cloudflare issue on this page, and
         # critically, a phantom popup that blocks "Load more" clicks only
         # shows up in a headed/real-Chrome browser, not headless.
+        # Use a logged-in session if one was saved via save_login.py --
+        # the site appears to cap the submission list at 50 for anonymous
+        # visitors but shows the full list to authenticated users.
         list_browser = p.chromium.launch(headless=True)
-        list_page = list_browser.new_page(user_agent=(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
-        ))
+        auth_state_path = "auth_state.json"
+        if os.path.exists(auth_state_path):
+            print(f"  using saved login from {auth_state_path}", file=sys.stderr)
+            list_context = list_browser.new_context(
+                storage_state=auth_state_path,
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+                ),
+            )
+        else:
+            print("  no saved login found (run save_login.py first for the "
+                  "full list) -- continuing anonymously", file=sys.stderr)
+            list_context = list_browser.new_context(user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+            ))
+        list_page = list_context.new_page()
         print("Loading submission list (clicking Load more)...", file=sys.stderr)
         rel_links = load_all_submissions(list_page, hackathon_url)
         print(f"Found {len(rel_links)} submissions.", file=sys.stderr)
