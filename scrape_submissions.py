@@ -46,6 +46,19 @@ def load_all_submissions(page, hackathon_url: str, max_rounds: int = 100):
     where scrolling to the bottom triggers more cards to load.
     """
     live_url = hackathon_url.rstrip("/") + "/live"
+
+    # Log the underlying API calls the page makes while paginating, so we
+    # can see if there's a direct endpoint we could call instead of
+    # clicking through a UI that may cap out below the real total.
+    api_calls = []
+
+    def log_response(response):
+        url = response.url
+        if ("/api/" in url or "graphql" in url.lower()) and response.request.method in ("GET", "POST"):
+            api_calls.append((response.request.method, url))
+
+    page.on("response", log_response)
+
     page.goto(live_url, wait_until="domcontentloaded", timeout=45000)
     page.wait_for_timeout(2000)
 
@@ -132,6 +145,14 @@ def load_all_submissions(page, hackathon_url: str, max_rounds: int = 100):
         with open("debug_live_page.html", "w") as f:
             f.write(page.content())
         print("  saved debug_live_page.html for inspection", file=sys.stderr)
+
+    print(f"  API calls observed while loading ({len(api_calls)}):", file=sys.stderr)
+    seen = set()
+    for method, url in api_calls:
+        key = url.split("?")[0]
+        if key not in seen:
+            seen.add(key)
+            print(f"    {method} {url}", file=sys.stderr)
 
     return sorted(count_matches())
 
