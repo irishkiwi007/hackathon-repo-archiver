@@ -4,19 +4,33 @@ main hackathon page (as opposed to /live) expose more than 50 items?
 
 Usage: python3 test_track_gallery.py
 """
+import os
 import re
 import sys
 from playwright.sync_api import sync_playwright
 
-URL = "https://lablab.ai/ai-hackathons/alpaca-ai-trading-agents-hackathon"
+URL = "https://lablab.ai/ai-hackathons/alpaca-ai-trading-agents-hackathon?track=options-alpha-agents#submissions"
 SLUG = "alpaca-ai-trading-agents-hackathon"
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
-    page = browser.new_page(user_agent=(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
-    ))
+    auth_state_path = "auth_state.json"
+    if os.path.exists(auth_state_path):
+        print(f"using saved login from {auth_state_path}", file=sys.stderr)
+        context = browser.new_context(
+            storage_state=auth_state_path,
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+            ),
+        )
+    else:
+        print("no saved login found -- continuing anonymously", file=sys.stderr)
+        context = browser.new_context(user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+        ))
+    page = context.new_page()
     page.goto(URL, wait_until="domcontentloaded", timeout=45000)
     page.wait_for_timeout(3000)
 
