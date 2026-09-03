@@ -54,8 +54,18 @@ def load_all_submissions(page, hackathon_url: str, max_rounds: int = 100):
 
     def log_response(response):
         url = response.url
-        if ("/api/" in url or "graphql" in url.lower()) and response.request.method in ("GET", "POST"):
-            api_calls.append((response.request.method, url))
+        method = response.request.method
+        # Skip obvious static assets and known third-party noise.
+        if any(url.endswith(ext) for ext in
+               (".png", ".jpg", ".jpeg", ".svg", ".webp", ".css", ".woff",
+                ".woff2", ".ico", ".js", ".map")):
+            return
+        noisy_hosts = ("google", "facebook", "doubleclick", "hotjar",
+                       "sentry", "segment", "cookieyes", "clarity",
+                       "cdn.", "storage.googleapis.com", "gstatic")
+        if any(h in url for h in noisy_hosts):
+            return
+        api_calls.append((method, url))
 
     page.on("response", log_response)
 
@@ -149,7 +159,7 @@ def load_all_submissions(page, hackathon_url: str, max_rounds: int = 100):
     print(f"  API calls observed while loading ({len(api_calls)}):", file=sys.stderr)
     seen = set()
     for method, url in api_calls:
-        key = url.split("?")[0]
+        key = (method, url.split("?")[0])
         if key not in seen:
             seen.add(key)
             print(f"    {method} {url}", file=sys.stderr)
