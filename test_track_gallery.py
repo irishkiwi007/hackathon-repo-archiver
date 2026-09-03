@@ -8,7 +8,7 @@ import re
 import sys
 from playwright.sync_api import sync_playwright
 
-URL = "https://lablab.ai/ai-hackathons/alpaca-ai-trading-agents-hackathon?track=options-alpha-agents#submissions"
+URL = "https://lablab.ai/ai-hackathons/alpaca-ai-trading-agents-hackathon"
 SLUG = "alpaca-ai-trading-agents-hackathon"
 
 with sync_playwright() as p:
