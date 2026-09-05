@@ -94,6 +94,10 @@ def main():
     ap.add_argument("--prefix", default="hackathon-")
     ap.add_argument("--private", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--skip-existing", action="store_true",
+                     help="If the destination repo already exists, leave it "
+                          "completely untouched (no push/update) instead of "
+                          "re-pushing to pick up upstream changes.")
     args = ap.parse_args()
 
     token = os.environ.get("GITHUB_TOKEN")
@@ -136,6 +140,11 @@ def main():
             continue
 
         if github_repo_exists(token, args.dest_owner, new_name):
+            if args.skip_existing:
+                print("  already exists, skipping entirely (--skip-existing)")
+                ok.append({**sub, "new_repo": f"https://github.com/{args.dest_owner}/{new_name}.git",
+                           "note": "already existed, left untouched"})
+                continue
             print("  already exists, skipping create (will still push/update)")
         else:
             try:
